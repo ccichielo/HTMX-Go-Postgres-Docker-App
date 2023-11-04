@@ -1,63 +1,52 @@
 package main
 
 import (
+	"encoding/base64"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"os"
-	"regexp"
 
 	"example.com/lib"
 )
 
-type Page struct {
-	Title string
-	Body  []byte
-}
+func WebHandler(w http.ResponseWriter, r *http.Request) {
+	lib.TestDbConnection()
+	imgByte := lib.GetImageBytesById(1)
 
-var validPath = regexp.MustCompile("^/(view)/([a-zA-Z0-9]+)$")
-var templates = template.Must(template.ParseFiles("view.html"))
-
-func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
-	p, err := loadPage(title)
+	/*img, err := jpeg.Decode(bytes.NewReader(imgByte))
 	if err != nil {
-		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
+		log.Fatalln(err)
+	}*/
+
+	// Generate HTML using a template
+	htmlTemplate := `<html>
+        <body>
+            <img src="data:image/{{.ImageType}};base64,{{.ImageData}}" alt="Decoded Image">
+        </body>
+    </html>`
+
+	data := struct {
+		ImageType string
+		ImageData string
+	}{
+		ImageType: "jpeg", // or "png"
+		ImageData: base64.StdEncoding.EncodeToString(imgByte),
+	}
+
+	tmpl, err := template.New("html").Parse(htmlTemplate)
+	if err != nil {
+		fmt.Println("Error parsing HTML template:", err)
 		return
 	}
-	renderTemplate(w, "view", p)
-}
 
-func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		m := validPath.FindStringSubmatch(r.URL.Path)
-		if m == nil {
-			http.NotFound(w, r)
-			return
-		}
-		fn(w, r, m[2])
-	}
-}
-
-func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
-	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+	err = tmpl.Execute(w, data)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		fmt.Println("Error executing HTML template:", err)
 	}
-}
-
-func loadPage(title string) (*Page, error) {
-	filename := title + ".txt"
-	body, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return &Page{Title: title, Body: body}, nil
 }
 
 func main() {
-	lib.TestDbConnection()
-	img := lib.GetImageBytesById(1)
-
-	http.HandleFunc("/view/", makeHandler(viewHandler))
+	http.HandleFunc("/", WebHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

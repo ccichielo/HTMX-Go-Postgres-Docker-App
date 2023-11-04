@@ -42,18 +42,18 @@ func TestDbConnection() {
 	fmt.Println("Successfully connected!")
 }
 
-func GetImageBytesById(id int) byte[] {
+func GetImageBytesById(id int) []byte {
 	db, err := sql.Open("postgres", psqlInfo())
 
 	sqlStatement := `SELECT * FROM image WHERE id=$1;`
 	row := db.QueryRow(sqlStatement, id)
 
 	var image Image
-	err = row.Scan(&image.bytes)
+	err = row.Scan(&image.id, &image.name, &image.bytes)
 	switch err {
 	case sql.ErrNoRows:
 		fmt.Println("No rows were returned!")
-		return
+		return nil
 	case nil:
 		return image.bytes
 	default:
